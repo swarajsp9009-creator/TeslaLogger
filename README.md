@@ -1,4 +1,4 @@
-# TeslaLogger
+TeslaLogger is a self hosted data logger for your Tesla Model S/3/X/Y/Cybertruck
 
 <!-- PROJECT SHIELDS -->
 <!--
