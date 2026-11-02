@@ -46,7 +46,7 @@ namespace TeslaLogger
         public bool lastFastChargerPresent = false;
 
         public int lastposid = 0;
-        private double lastIdealBatteryRange;
+        internal double lastIdealBatteryRange;
         private double? lastOdometer;
         private double? lastOutsideTemp;
         private double? lastInsideTemp;
@@ -285,6 +285,12 @@ namespace TeslaLogger
                 {
                     string key = jj["key"];
                     dynamic value = jj["value"];
+
+                    if (value.ContainsKey("invalid") && value["invalid"] == true)
+                    {
+                        Log($"Invalid value for key: {key}");
+                        continue;
+                    }
 
                     if (key == "SentryMode")
                     {
@@ -910,6 +916,10 @@ namespace TeslaLogger
                     string key = jj["key"];
                     dynamic value = jj["value"];
 
+                    // Skip invalid values early
+                    if (value.ContainsKey("invalid") && value["invalid"] == true)
+                        continue;
+
                     if (key == "ACChargingEnergyIn" && charge_energy_added == null)
                     {
                         string v1 = value["stringValue"];
@@ -1066,11 +1076,20 @@ namespace TeslaLogger
                         }
                         if (double.TryParse(v1, NumberStyles.Any, CultureInfo.InvariantCulture, out double IdealBatteryRange))
                         {
-                            lastIdealBatteryRange = Tools.MlToKm(IdealBatteryRange, 1);
-                            lastRatedRange = lastIdealBatteryRange;
-                            car.CurrentJSON.current_ideal_battery_range_km = lastIdealBatteryRange;
-                            car.CurrentJSON.current_battery_range_km = lastIdealBatteryRange;
-                            changed = true;
+                            if (IdealBatteryRange != 999)
+                            {
+                                SetIdealRange(IdealBatteryRange);
+                                changed = true;
+                            }
+                            else
+                            {
+                                if (!car.Raven)
+                                {
+                                    Log("Raven detected by IdealBatteryRange == 999");
+                                    car.Raven = true;
+                                    car.WriteSettings();
+                                }
+                            }
                         }
                     }
                     else if (key == "RatedRange")
@@ -1089,6 +1108,11 @@ namespace TeslaLogger
                             lastRatedRange = Tools.MlToKm(RatedRange, 1);
                             car.CurrentJSON.current_battery_range_km = lastRatedRange;
                             changed = true;
+
+                            if (car.Raven)
+                            {
+                                SetIdealRange(RatedRange);
+                            }
                         }
                     }
                 }
@@ -1100,12 +1124,20 @@ namespace TeslaLogger
 
                 if (cmd.Parameters.Count > 0 && IsCharging)
                 {
-                    InsertCharging(d, cmd);
+                    InsertChargingAsync(d, cmd).Wait();
                 }
             }
         }
 
-        private void InsertCharging(DateTime d, MySqlCommand cmd)
+        private void SetIdealRange(double IdealBatteryRange)
+        {
+            lastIdealBatteryRange = Tools.MlToKm(IdealBatteryRange, 1);
+            lastRatedRange = lastIdealBatteryRange;
+            car.CurrentJSON.current_ideal_battery_range_km = lastIdealBatteryRange;
+            car.CurrentJSON.current_battery_range_km = lastIdealBatteryRange;
+        }
+
+        private async Task InsertChargingAsync(DateTime d, MySqlCommand cmd)
         {
             cmd.Parameters.AddWithValue("@battery_level", lastSoc);
 
@@ -1568,6 +1600,10 @@ namespace TeslaLogger
 
                             double d;
                             dynamic value = jj["value"];
+                            // Skip invalid values early
+                            if (value.ContainsKey("invalid") && value["invalid"] == true)
+                                continue;
+
                             if (value.ContainsKey("stringValue"))
                             {
                                 string v1 = value["stringValue"];
@@ -1768,7 +1804,7 @@ namespace TeslaLogger
             using (MySqlCommand cmd = new MySqlCommand())
             {
                 cmd.Parameters.AddWithValue("@charge_energy_added", charge_energy_added);
-                InsertCharging(date, cmd);
+                InsertChargingAsync(date, cmd).Wait();
             }
         }
 
@@ -1784,6 +1820,10 @@ namespace TeslaLogger
                     if (cols.Any(key.Contains))
                     {
                         dynamic value = jj["value"];
+
+                        // Skip invalid values early
+                        if (value.ContainsKey("invalid") && value["invalid"] == true)
+                            continue;
 
                         if (key == "ChargeState")
                         {

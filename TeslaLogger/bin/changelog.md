@@ -1,5 +1,16 @@
-# Version 1.63.18
-- Bugfixes
+# 1.63.23.0
+- BF: MQTT commands (teslalogger/command/...) were ignored after a reconnect to the MQTT broker, because the subscription was not restored (reconnect uses cleanSession=true)
+- MQTT: the command response is now published to teslalogger/command/<VIN>/<command>/result, so home-automation setups can verify the command (e.q. vehicle unavailable)
+- Grafana 13.2.4 (Security Update)
+
+# Version 1.63.22
+- Grafana 13 update 
+- Trackmap Panel (React update for Grafana 13 compatibility) now with Ionity & EnBW icons
+- Journey, Charging, Consumption dashboards with Ionity/EnBW icons too
+- New go-E Wallbox support
+
+# Version 1.63.20.4
+- Model S/X up to model year 2021 with MCU2 are now also supported by the official Fleet API.
 
 # Version 1.63.15
 - MCP Server: get_tripsummary and get_chargesummary for a given time range. This is especially useful for AI clients to get a quick summary of the last trip or charging session without the need to parse all the data points.
